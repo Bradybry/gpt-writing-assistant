@@ -1,53 +1,71 @@
-# AI Document Reviewer
+# AI Document Reviewer 
 
-This Python script is designed to automate the process of reviewing and editing documents using the OpenAI GPT-4 model. It reads a Word document (.docx), parses it into paragraphs, and then sends each paragraph to the GPT-4 model for editing based on supplied guidelines. The edited paragraphs are then written back to the document with tracked changes, so you can see what was modified.
+This Python script is designed to automate the process of reviewing and editing documents using the Anthropic Claude AI assistant or OpenAI models. It provides a simple web UI using Flask and reads a Word document (.docx), parses it into paragraphs, and then sends each paragraph to Claude for editing based on supplied guidelines. The edited paragraphs are then written back to the document with tracked changes, so you can see what was modified.
 
-The script leverages the new function calling capabilities from OpenAI for generating structured output that is more easy to use in the rest of the system.
+## Changes from previous version
 
-Note: This system is not perfect. Some advanced formatting in word gets messed up when applying the track changes. However, it works well for documents with simple consistent formatting. It was hard enough getting the track changes to work in the first place.
+- No longer uses GPT-4 function calling abilities. Now works with Anthropic Claude and other OpenAI models that accept free-form text prompts.
+
+- Added a Flask web UI for easier use. Users can now upload documents through a web form rather than running Python scripts directly. 
+
+- Uses a .env file for configuration instead of a config.py file.
 
 ## How it works
 
-The script uses the `openai.ChatCompletion.create` function to generate a response from the GPT-4 model for each paragraph in the document. It also makes use of `lxml` for parsing and modifying the Word document XML, and `diff_match_patch` for generating diffs between the original and edited paragraphs.
+The script sends each paragraph to Claude along with a provided preamble that gives editing guidelines. Claude's response for each paragraph is compared to the original and diffs are generated using diff_match_patch. The diffs are then applied to the original document XML using lxml.
 
 See the example output included in the /output/ folder.
 
 ## Usage
 
-To use this script, you need to provide the path to the Word document you want to edit, the output path for the edited document, and the model parameters. The model parameters should be a dictionary with the following keys: `temperature`, `frequency_penalty`, `presence_penalty`, `n`, and `max_tokens`.
+To use the web UI:
 
-You also need to provide a preamble that sets the guidelines for the editing. This should be a string that will be sent to the GPT-4 model before each paragraph. The preamble can be loaded from a text file.
+1. Clone the repository
+2. Install requirements with `pip install -r requirements.txt` 
+3. Add your Anthropic API key to the .env file
+4. Run `python app.py`
+5. Navigate to http://localhost:5000 in your browser
+6. Upload a .docx file and add your editing preamble if desired
+7. Click "Submit" and view/download the edited file
 
-You can also optionally run a VBA macro on the edited document after it's saved. This is useful for applying formatting changes, such as converting Markdown to Word formatting. The VBA for this macro is included, however it does require that the user has word installed and all macros enabled. The default behaviour does not reformat. I'm currenly looking for a way to accomplish this in a simpler pythong only manner. Any insight would be appreciated.
+The Flask app provides a simple interface for uploading files, viewing the diff, and downloading the edited document.
 
-Here is an example of how to use the script:
-
-```python
-model_params = {
-    "temperature": 0.00,
-    "frequency_penalty": 0.0,
-    "presence_penalty": 0.0,
-    "n": 1,
-    "max_tokens": 4096
-}
-preamble = open('./preamble.txt', 'r').read()
-
-run_doc_review(
-    input_path="./uploads/document.docx",
-    output_path="./output/document.docx",
-    model_params=model_params,
-    preamble=preamble
-)
-```
+Advanced users can also run edit_document.py directly with their own input/output paths and parameters.
 
 ## Requirements
 
-This script requires the following Python libraries: `pathlib`, `tqdm`, `lxml`, `uuid`, `re`, `zipfile`, `diff_match_patch`, `typing`, `os`, `win32com.client`, `openai`, `json`.
+This script requires the following Python libraries:
 
-You also need to have the OpenAI API key set in a `config.py` file:
+- pathlib 
+- tqdm  
+- lxml
+- uuid
+- re
+- zipfile
+- diff_match_patch
+- typing
+- os
+- flask
+- python-dotenv
 
-```python
-OPENAI_API_KEY = "your_openai_api_key"
-```
+You also need an API key for Anthropic Claude, set in the .env file as `CLAUDE_API_KEY`.
 
-Please note that usage of the OpenAI API is subject to usage fees.
+## Caveats
+
+- Formatting can get messed up when applying track changes, especially with complex documents.
+- Images and some advanced formatting may get lost.
+- Currently only supports .docx files.
+
+Please use carefully and verify outputs! The AI is not perfect and may make unwanted changes.
+
+## Next Steps
+
+Potential improvements:
+
+- Better handling of formatting to maintain docx integrity 
+- Support for other file types besides .docx
+- More robust diffing/patching
+- Additional UI polish
+- Tests!
+
+Let me know if you have any other questions!

@@ -8,64 +8,59 @@ from zipfile import ZipFile
 from diff_match_patch import diff_match_patch
 from typing import Dict, List, Tuple
 
-
-from config import OPENAI_API_KEY
+from langchain.chat_models import ChatAnthropic, ChatOpenAI
+from langchain.schema import HumanMessage, SystemMessage
 
 import os
 import win32com.client as win32
 
-import openai
-import json
+openai_api_key = os.environ.get('OPENAI_API_KEY')
+anthropic_api_key = os.environ.get('ANTHROPIC_API_KEY')
+if openai_api_key is None:
+    from dotenv import load_dotenv
+    load_dotenv()
+    openai_api_key = os.environ.get('OPENAI_API_KEY')
 
-# load and set our key
-openai.api_key = OPENAI_API_KEY
+if anthropic_api_key is None:
+    from dotenv import load_dotenv
+    load_dotenv()
+    anthropic_api_key = os.environ.get('ANTHROPIC_API_KEY')
 
 
 class WordEditor:
     def __init__(self, model_params: dict, preamble: str) -> None:
 
         self.model_params = model_params
-        self.functions = [
-            {
-                "name": "edit_paragraphs",
-                "description": "Edits each paragraph in the user input based on the supplied guidelines.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "paragraphs": {
-                            "type": "array",
-                            "items": {
-                                "type": "string",
-                                "description": "A single edited paragraph based on the supplied guidelines. Empty string if no changes are necessary."
-                            },
-                            "description": "List of edited paragraphs from the user input."
-                        }
-                    },
-                    "required": ["paragraphs"]
-                }
-            }
-            ]
-        self.system_message = self.message(preamble, "system")
-    
-    def get_completion(self, prompt):
-        messages = [self.system_message, self.message(prompt, "user")]
-        completion = openai.ChatCompletion.create(model='gpt-4-0613', 
-                                                  messages=messages, max_tokens=4096, 
-                                                  functions=self.functions, 
-                                                  function_call={'name':self.functions[0]['name']})
-        reply_content = completion.choices[0].message
-        funcs = reply_content.to_dict()['function_call']['arguments']
-        funcs = json.loads(funcs)
-        return funcs['paragraphs']
-        
-    def message(self, content: str, role: str) -> dict:
-        return {"role": role, "content": content}
-    
+
+        if 'gpt' in model_params["model_name"]:
+            if model_params["model_name"] == "gpt-3.5-turbo-16k":
+                model_params["max_tokens"] = 6144
+            if model_params["model_name"] == "gpt-4":
+                model_params["max_tokens"] = 4096
+            self.llm = ChatOpenAI(
+                openai_api_key=openai_api_key,
+                **model_params,
+                request_timeout=600
+            )
+        elif 'claude' in model_params["model_name"]:
+            if model_params['model_name'] in ['claude-instant-1-100k', 'claude-1-100k']:
+                self.model_params['max_tokens'] = 15000
+            if model_params["model_name"] in ["claude-instant-1", "claude-1"]:
+                self.model_params["max_tokens"] = 4096
+            self.llm = ChatAnthropic(
+                model=self.model_params["model_name"],
+                temperature=self.model_params["temperature"],
+                max_tokens_to_sample=self.model_params["max_tokens"],
+                anthropic_api_key=anthropic_api_key
+            )
+
+        self.system_message = SystemMessage(content=preamble)
+
     def edit_paragraphs(self, paragraphs: List[str]):
         num_paragraphs = len(paragraphs)
         prompt = self.get_prompt(paragraphs)
-        llm_output = self.get_completion(prompt)
-
+        messages = [self.system_message, prompt]
+        llm_output = self.llm(messages).content
         parsed_output = self.parse_llm_output(llm_output, num_paragraphs)
 
         if parsed_output['parsed']:
@@ -78,13 +73,16 @@ class WordEditor:
             f"<paragraph_{i + 1}>{text}</paragraph_{i + 1}>\n"
             for i, text in enumerate(paragraphs)
         )
-        return prompt
+        return HumanMessage(content=prompt)
     
-    def parse_llm_output(self, edited_text: str, num_paragraphs: int) -> Dict[str, list]:
+    def parse_llm_output(self, llm_output: str, num_paragraphs: int) -> Dict[str, list]:
         """
         Parse the output of the LLM API for tracked changes and return a dictionary of parsed values.
         """
         try:
+            edited_text_pattern = r'<edited_p(\d+)>(.*?)<\/edited_p(\d+)>'
+            edited_text = re.findall(edited_text_pattern, llm_output, re.DOTALL)
+
             if len(edited_text) <= 0:
                 return {
                     'changes_necessary': [False] * num_paragraphs,
@@ -109,9 +107,9 @@ class WordEditor:
         Extract the changes and edited texts from the edited text.
         """
         change_necessary = []
-        edited_text_values = [e.strip() for e in edited_text][:num_paragraphs]
+        edited_text_values = [e[1].strip() for e in edited_text][:num_paragraphs]
         for text in edited_text_values:
-            if text.strip() == '':
+            if text == 'No Change':
                 change_necessary.append(False)
             else:
                 change_necessary.append(True)
@@ -142,7 +140,7 @@ class WordDocument:
             f.write(f"Date: {self.date}\n")
             f.write(f"Path: {self.path.stem}\n")
             f.write(f"Number of paragraphs: {len(self.paragraphs)}\n")
-            f.write(f"Number of words: {len(''.join(self.get_paragraphs_text(self.paragraphs)).split())}\n\n")
+            f.write(f"Number of words: {len(''.join(self.get_paragraphs_text(self.paragraphs)).split(' '))}\n\n")
     
     def log(self, text: str):
         with open(self.log_file, 'a', encoding='utf-8') as f:
@@ -321,7 +319,7 @@ class WordDocument:
         Returns:
             None
         """
-        model_info = f'Model: gpt-4-0613\n'
+        model_info = f'Model: {llm.model_params["model_name"]}\n'
         model_info += f'Temperature: {llm.model_params["temperature"]}\n'
         model_info += f'Max Tokens: {llm.model_params["max_tokens"]}\n\n'
         self.log(model_info)
@@ -372,7 +370,7 @@ class WordDocument:
         word.Quit()
 
 
-def run_doc_review(input_path, output_path, model_params, preamble, vba=False):
+def run_doc_review(input_path, output_path, model_params, preamble):
     if type(input_path) == str:
         input_path = Path(input_path)
     if type(output_path) == str:
@@ -390,11 +388,11 @@ def run_doc_review(input_path, output_path, model_params, preamble, vba=False):
     llm = WordEditor(model_params, preamble)
     doc.edit_paragraphs(llm)
     doc.save_tracked_changes_docx(output_path)
-    if vba:
-        doc.run_vba_macro(output_path)
+    doc.run_vba_macro(output_path)
 
 if __name__ == "__main__":
     model_params = {
+        "model_name": "claude-v1.3",
         "temperature": 0.00,
         "frequency_penalty": 0.0,
         "presence_penalty": 0.0,
@@ -404,8 +402,8 @@ if __name__ == "__main__":
     preamble = open('./preamble.txt', 'r').read()
 
     run_doc_review(
-        input_path="./uploads/14900-MONORAIL AND HOIST SYSTEMS.docx",
-        output_path="./output/14900-MONORAIL AND HOIST SYSTEMS.docx",
+        input_path="./uploads/gpt_jokes.docx",
+        output_path="./output/gpt_jokes.docx",
         model_params=model_params,
         preamble=preamble
     )

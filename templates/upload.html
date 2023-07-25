@@ -1,0 +1,315 @@
+<!doctype html>
+<html>
+<head>
+    <title>Technical Writing Bot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f8f8f8;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #ffffff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-radius: 4px;
+        }
+        h1 {
+            text-align: center;
+            color: #444444;
+            margin-bottom: 30px;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        label {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        input[type="file"], textarea, input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        textarea {
+            min-height: 150px;
+            resize: vertical;
+        }
+        input[type="submit"] {
+            font-size: 16px;
+            padding: 8px 16px;
+            background-color: #007bff;
+            color: #ffffff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+        }
+        input[type="submit"]:hover {
+            background-color: #0056b3;
+        }
+        .loading-spinner {
+            display: none;
+            border: 6px solid #f3f3f3;
+            border-top: 6px solid #007bff;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #download-btn {
+            display: block;
+            font-size: 16px;
+            padding: 8px 16px;
+            background-color: #28a745;
+            color: #ffffff;
+            border: none;
+            border-radius: 4px;
+            text-align: center;
+            margin-top: 20px;
+            text-decoration: none;
+        }
+
+        #download-btn:hover {
+            background-color: #218838;
+        }
+
+        .upload-btn {
+          display: block;
+        }
+
+        .upload-btn.processing {
+            display: none;
+        }
+        .section {
+                width: 100%;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                margin-bottom: 20px;
+                overflow: visible;
+                text-align: center;
+                position: relative;
+            }
+
+        .section-header {
+            background-color: #f0f0f0;
+            padding: 10px;
+            cursor: pointer;
+        }
+
+        .section-content {
+            padding: 10px;
+            display: none; /* Hidden by default */
+            text-align: center;
+        }
+        .input-group {
+            /* display: flex;
+            align-items: baseline; */
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .input-group label {
+            margin-right: 10px;
+            position: relative;
+        }
+
+        .input-group input {
+            flex-grow: 1;
+            width: 60%;
+        }
+        .input-group label .tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            margin-bottom: 10px;
+            padding: 10px;
+            background-color: #333;
+            color: #fff;
+            border-radius: 5px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            z-index: 1000;
+            white-space: nowrap;
+            left: 0%;
+            transform: translateX(0%);
+            align-items: center;
+            text-align: center;
+        }
+
+        .input-group label:hover .tooltip {
+            opacity: 1;
+        }
+        .input-group textarea {
+            width: 100%;
+            height: 150px;
+            padding: 5px;
+            box-sizing: border-box;
+        }
+        .label-group {
+            position: relative;
+            display: block;
+        }
+        .input-group label .tooltip-guideline {
+            left: 50%;
+            transform: translateX(-50%);
+        }
+    </style>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Technical Writing Bot</h1>
+        <form id="upload-form" enctype="multipart/form-data">
+            <div class="input-group">
+            <label for="model_name">Select a Model:<span class="tooltip tooltip-guideline">Choose a backend language model for conducting the analysis of your document:<br>
+                <strong>GPT-4 &amp; GPT-3.4:</strong> Advanced language models powered by OpenAI's API, suitable for a variety of tasks. <br>GPT-4 is significantly better at reasoning and understanding context, but at the cost of slower inference.<br>
+                <strong>Claude Models:</strong> A series of language models utilizing Anthropic's API, V1.3 is signficantly more capable, but instant-v1 is incredibly fast.<br>
+                Consider the nature of your document and desired output when selecting a model.</span></label>
+                <select name="model_name" id="model_name" required>
+                    <option value="gpt-4">GPT-4</option>
+                    <option value="gpt-3.5-turbo-16k">GPT-3.5 Turbo</option>
+                    <option value="claude-2" selected>Claude v2</option>
+                    <option value="claude-instant-1">Claude Instant v1</option>
+                    <option value="claude-instant-1-100k">Claude Instant BIG context</option>
+                    <option value="claude-1-100k">Claude V1.3 BIG context</option>
+                </select>
+            </div>
+            <div class="input-group">
+            <label for="rewrite_val">Select Rewrite Intensity:<span class="tooltip tooltip-guideline">Choose the desired level of editing for your document by the Language Model:<br>
+                <strong>Minimal:</strong> Makes only necessary changes, preserving most of the original content.<br>
+                <strong>Normal:</strong> Makes moderate changes, balancing between preserving the original content and improving the overall quality.<br>
+                <strong>Extreme:</strong> Makes extensive changes, resulting in a more significant transformation of the content.<br>
+                Select an intensity based on your preference for maintaining the original tone and style versus enhancing the document.</span></label>
+ 
+                <select name="rewrite_val" id="rewrite_val" required>
+                    <option value="minimal">Minimal</option>
+                    <option value="normal" selected>Normal</option>
+                    <option value="extreme">Extreme</option>
+                </select>
+            </div>
+
+            <br><br>
+            <label for="file">Upload a DOCX file:</label>
+            <input type="file" name="file" accept=".docx" required>
+
+            <input type="submit" value="Upload" class="upload-btn">
+            <br>
+            <div class="section">
+                <div class="section-header" onclick="toggleSection(this)">Advanced Settings</div>
+                <div class="section-content">
+                    <!-- Add new fields for new guidelines -->
+                    <div class="input-group">
+                        <div class="label-group">
+                            <label for="new_guideline">New Guideline
+                            <span class="tooltip tooltip-guideline">Enter any additional instructions or guidelines here to guide the Language Model's editing process.<br>
+                                Be specific about your requirements, such as tone, style, or any particular changes you want the model to make.<br>
+                                Examples: "Replace all instances of the City of Houston with the City of Baytown." or "Focus on correcting grammar and punctuation."</span>
+                            </label>
+                        </div>
+                        <textarea id="new_guideline" name="new_guideline"></textarea>
+                    </div>
+                    
+        
+                    <!-- Add new fields for new attributes -->
+                    <div class="input-group">
+                        <label for="attribute_name">New Attribute Name:<span class="tooltip">Enter a descriptive name for the attribute you want to add to influence the Language Model's output.<br>
+                            Examples include humor, professionalism, or politeness.<br>
+                            The chosen attribute will help guide the model to produce a document that aligns with your preferences.</span></label>
+                        <input type="text" id="attribute_name" name="attribute_name">
+                    </div>
+                    <div class="input-group">
+                        <label for="attribute_value">New Attribute Value:<span class="tooltip">Enter a value to represent the level or intensity of the attribute in the edited document:<br>
+                            Use descriptive adjectives, such as Low, Medium, or High, to indicate the desired degree of the attribute.<br>
+                            Numerical values like 1-10 can also be used, where 1 represents the lowest intensity and 10 the highest.<br>
+                            This value will help the Language Model understand the prominence of the selected attribute in the final output.</span></label>
+                        <input type="text" id="attribute_value" name="attribute_value">
+                    </div>
+                    <!-- Add new fields for context -->
+                    <div class="input-group">
+                        <div class="label-group">
+                            <label for="context">Additional Context
+                                <span class="tooltip tooltip-guideline">Provide any additional context to help the Language Model understand the document's background or specific information.<br>
+                                    This can include project details, target audience, or any other relevant information that may enhance the model's understanding.<br>
+                                    Examples: "New equipment data to integrate into spec: {provide equipment dat}" or "The target audience is non-technical users."</span>
+                            </label>
+                        </div>
+                        <textarea id="context" name="context"></textarea>
+                    </div>
+                </div>
+            </div>
+        </form>
+        <div class="loading-spinner" id="loadingSpinner"></div>
+        <a href="#" id="download-btn" style="display: none;">Download Processed File</a>
+    </div>
+    <script>
+
+        function showSpinner() {
+            document.getElementById('loadingSpinner').style.display = 'block';
+        }
+
+        function hideSpinner() {
+            document.getElementById('loadingSpinner').style.display = 'none';
+        }
+
+        $("#upload-form").submit(function (event) {
+            event.preventDefault();
+            showSpinner();
+
+            var formData = new FormData($(this)[0]);
+
+            $.ajax({
+                url: '/upload',
+                type: 'POST',
+                data: formData,
+                async: true,
+                cache: false,
+                contentType: false,
+                processData: false,
+                success: function (response) {
+                    hideSpinner();
+                    var downloadLink = document.getElementById('download-btn');
+                    downloadLink.href = '/download/' + response.filename;
+                    downloadLink.style.display = 'block';
+                },
+                error: function (response) {
+                    hideSpinner();
+                    alert(response.responseJSON.error);
+                },
+            });
+        });
+        function showSpinner() {
+            document.getElementById('loadingSpinner').style.display = 'block';
+            $('.upload-btn').addClass('processing');
+        }
+
+        function hideSpinner() {
+            document.getElementById('loadingSpinner').style.display = 'none';
+            $('.upload-btn').removeClass('processing');
+        }
+        function toggleSection(element) {
+            var content = element.nextElementSibling;
+            if (content.style.display === "block") {
+                content.style.display = "none";
+            } else {
+                content.style.display = "block";
+            }
+        }
+    </script>
+  </body>
+</html>
